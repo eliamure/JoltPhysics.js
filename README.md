@@ -9,7 +9,7 @@ This project enables using [Jolt Physics](https://github.com/jrouwe/JoltPhysics)
 
 ## Demos
 
-Go to the [demos page](https://jrouwe.github.io/JoltPhysics.js/) to see the project in action.
+Go to the [demos page](https://eliamure.github.io/JoltPhysics.js/) to see the project in action.
 
 ## Using
 
