@@ -32,6 +32,3 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./Examples
         force_orphan: true
-
-    - name: Publish NPM
-      run: ./ci/npm-publish.sh
