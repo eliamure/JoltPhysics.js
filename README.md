@@ -1,6 +1,3 @@
-[![Version](https://img.shields.io/npm/v/jolt-physics)](https://www.npmjs.com/package/jolt-physics)
-[![Downloads](https://img.shields.io/npm/dt/jolt-physics.svg)](https://www.npmjs.com/package/jolt-physics)
-[![Bundle Size](https://img.shields.io/bundlephobia/min/jolt-physics?label=bundle%20size)](https://bundlephobia.com/result?p=jolt-physics)
 [![Build Status](https://github.com/jrouwe/JoltPhysics.js/actions/workflows/build-and-deploy.yml/badge.svg)](https://github.com/jrouwe/JoltPhysics.js/actions/)
 
 # JoltPhysics.js
@@ -32,61 +29,50 @@ Almost the entire Jolt interface has been exposed. Check [JoltJS.idl](https://gi
 
 ### Installation
 
-This library is distributed as ECMAScript modules on npm:
+To use this library, you need to clone the repository and build it from source.
 
-```sh
-npm install jolt-physics
-```
+#### Building from Source
 
-The different flavours are available via entrypoints on the npm package:
+See the [Building](#building) section below for instructions on how to build the library.
+
+#### Using Built Files
+
+After building, the library files will be available in the various build directories (`wasm`, `wasm-compat`, `asm`, etc.) within the repository. Copy the appropriate build directory to your project and import the files.
+
+The different flavours are available via different build outputs. The paths below are examples relative to where you place the build files in your project:
 
 ```js
 // WASM embedded in the bundle
-import Jolt from 'jolt-physics';
-import Jolt from 'jolt-physics/wasm-compat';
+import Jolt from './wasm-compat/jolt-physics.wasm-compat.js';
 
 // WASM embedded in the bundle, debug checking enabled (outputs errors to the console and enables the debug renderer)
-import Jolt from 'jolt-physics/debug-wasm-compat';
+import Jolt from './debug-wasm-compat/jolt-physics.debug.wasm-compat.js';
 
 // WASM
-import Jolt from 'jolt-physics/wasm';
+import Jolt from './wasm/jolt-physics.wasm.js';
 
 // asm.js
-import Jolt from 'jolt-physics/asm';
+import Jolt from './asm/jolt-physics.js';
 
 // WASM embedded in the bundle, multithread enabled
-import Jolt from 'jolt-physics/wasm-compat-multithread';
+import Jolt from './wasm-compat-multithread/jolt-physics.multithread.wasm-compat.js';
 
 // WASM embedded in the bundle, multithread enabled, debug checking enabled (outputs errors to the console and enables the debug renderer)
-import Jolt from 'jolt-physics/debug-wasm-compat-multithread';
+import Jolt from './debug-wasm-compat-multithread/jolt-physics.debug.multithread.wasm-compat.js';
 
 // WASM, multithread enabled
-import Jolt from 'jolt-physics/wasm-multithread';
+import Jolt from './wasm-multithread/jolt-physics.multithread.wasm.js';
 ```
-
-You can also import esm bundles with unpkg:
-
-```html
-<script type="module">
-    // import latest
-    import Jolt from 'https://www.unpkg.com/jolt-physics/dist/jolt-physics.wasm-compat.js';
-
-    // or import a specific version
-    import Jolt from 'https://www.unpkg.com/jolt-physics@x.y.z/dist/jolt-physics.wasm-compat.js';
-</script>
-```
-
-Where ```x.y.z``` is the version of the library you want to use.
 
 ### Using the WASM flavour
 
 To use the `wasm` flavour, you must either serve the WASM file `jolt-physics.wasm.wasm` alongside `jolt-physics.wasm.js`, or use a bundler that supports importing an asset as a url, and tell Jolt where to find the WASM file.
 
-To specify where to retrieve the WASM file from, you can pass a `locateFile` function to the default export of `jolt-physics/wasm`. For example, using [vite](https://vitejs.dev/) this would look like: 
+To specify where to retrieve the WASM file from, you can pass a `locateFile` function to the default export. For example, using [vite](https://vitejs.dev/) this would look like: 
 
 ```js
-import initJolt from "jolt-physics";
-import joltWasmUrl from "jolt-physics/jolt-physics.wasm.wasm?url";
+import initJolt from "./wasm/jolt-physics.wasm.js";
+import joltWasmUrl from "./wasm/jolt-physics.wasm.wasm?url";
 
 const Jolt = await initJolt({
   locateFile: () => joltWasmUrl,

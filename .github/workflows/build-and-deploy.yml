@@ -20,7 +20,6 @@ jobs:
       uses: actions/setup-node@v6
       with:
         node-version: '24'
-        registry-url: 'https://registry.npmjs.org'
 
     - name: Build
       run: ./ci/build-examples.sh
@@ -32,6 +31,3 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./Examples
         force_orphan: true
-
-    - name: Publish NPM
-      run: ./ci/npm-publish.sh
