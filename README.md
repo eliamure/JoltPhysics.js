@@ -29,7 +29,7 @@ Almost the entire Jolt interface has been exposed. Check [JoltJS.idl](https://gi
 
 ### Installation
 
-To use this library, you can build it from source or use the built files directly from the repository.
+To use this library, you need to clone the repository and build it from source.
 
 #### Building from Source
 
@@ -37,9 +37,9 @@ See the [Building](#building) section below for instructions on how to build the
 
 #### Using Built Files
 
-After building, the library files will be available in the various build directories (`wasm`, `wasm-compat`, `asm`, etc.). You can import them directly in your project.
+After building, the library files will be available in the various build directories (`wasm`, `wasm-compat`, `asm`, etc.) within the repository. Copy the appropriate build directory to your project and import the files.
 
-The different flavours are available via different build outputs:
+The different flavours are available via different build outputs. The paths below are examples relative to where you place the build files in your project:
 
 ```js
 // WASM embedded in the bundle
