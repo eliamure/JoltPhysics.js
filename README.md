@@ -1,3 +1,15 @@
+<!-- ───────────────────────────────────────────────────────────────────────── -->
+> **Fork note — Motorcycle Dynamics.** This fork was evaluated as a candidate
+> engine for a multibody motorcycle-dynamics project, and carries the MotoGP
+> example (`Examples/motogp_sim.html`, auto-deployed to GitHub Pages on push to
+> `main`). **Conclusion:** Jolt is excellent for game/VR feel (*simcade*), but its
+> `MotorcycleController` keeps the bike upright with a **PID lean controller**, so
+> it is a dead-end for *engineering-grade* dynamics, where balance must emerge from
+> the wheels' gyroscopic + trail coupling. The engineering-grade model was built on
+> MuJoCo instead. Full evaluation: [`MOTORCYCLE_DYNAMICS_FINDINGS.md`](MOTORCYCLE_DYNAMICS_FINDINGS.md).
+> The upstream JoltPhysics.js documentation follows unchanged.
+<!-- ───────────────────────────────────────────────────────────────────────── -->
+
 [![Build Status](https://github.com/jrouwe/JoltPhysics.js/actions/workflows/build-and-deploy.yml/badge.svg)](https://github.com/jrouwe/JoltPhysics.js/actions/)
 
 # JoltPhysics.js
