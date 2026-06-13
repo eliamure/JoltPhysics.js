@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<title>JoltPhysics.js MotoGP Prototype</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<body>
+	<div id="container">Loading...</div>
+	<div id="info">
+		JoltPhysics.js MotoGP Simulator Prototype<br />
+		WASD to move (Throttle/Brake/Lean). Z to hand brake.<br />
+		Specs: ~260hp, 157kg Dry Weight, Carbon Brakes, Slick Tires.
+	</div>
+	<div id="telemetry" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; padding: 10px; font-family: monospace; pointer-events: none;">
+		Speed: <span id="speed">0</span> km/h<br>
+		RPM: <span id="rpm">0</span><br>
+		Gear: <span id="gear">N</span><br>
+		TC: <span id="tc" style="color: grey">OFF</span><br>
+		AW: <span id="aw" style="color: grey">OFF</span>
+	</div>
+
+	<!-- External libraries from the repo structure -->
+	<script src="js/three/three.min.js"></script>
+	<script src="js/three/OrbitControls.js"></script>
+	<script src="js/three/WebGL.js"></script>
+	<script src="js/three/stats.min.js"></script>
+	<script src="js/example.js"></script>
+
+	<script type="module">
+		import initJolt from './js/jolt-physics.wasm-compat.js';
+
+		// --- CONFIGURAZIONE MOTOGP REALE ---
+		
+		// Posizione iniziale
+		const bodyPosition = [0, 2, 0];
+
+		// Dimensioni Telaio (Approssimazione carena MotoGP)
+		const halfVehicleLength = 1.0;  // Lunghezza totale ~2m
+		const halfVehicleWidth = 0.3;   // Larghezza carena ~0.6m
+		const halfVehicleHeight = 0.4;  // Altezza corpo ~0.8m (escluso cupolino alto)
+
+		// Massa: 157kg (moto) + 70kg (pilota) = ~227kg
+		const vehicleMass = 227.0;
+
+		// Geometria Ruota Posteriore (Slick 200/55 R17)
+		const backWheelRadius = 0.32; // ~640mm diametro
+		const backWheelWidth = 0.20;  // 200mm larghezza
+		const backWheelPosZ = -0.725; // Passo totale ~1450mm -> metà è 0.725
+
+		// Sospensione Posteriore (Monoammortizzatore rigido da gara)
+		const backSuspensionMinLength = 0.28;
+		const backSuspensionMaxLength = 0.40; // Corsa ridotta per stabilità
+		const backSuspensionFreq = 5.0;       // Alta frequenza per rigidità racing
+		const backBrakeTorque = 500.0;        // Freno posteriore per correzioni
+
+		// Geometria Ruota Anteriore (Slick 120/70 R17)
+		const frontWheelRadius = 0.30; // ~600mm diametro
+		const frontWheelWidth = 0.12;  // 120mm larghezza
+		const frontWheelPosZ = 0.725;  // Passo totale ~1450mm
+		
+		// Sospensione Anteriore (Forcella rigida)
+		const frontSuspensionMinLength = 0.28;
+		const frontSuspensionMaxLength = 0.40;
+		const frontSuspensionFreq = 4.5;      // Forcella leggermente più morbida del mono per inserimento
+		const frontBrakeTorque = 2500.0;      // Freni Carbonio: potenza frenante enorme
+
+		// Sterzo e Geometria
+		// Angolo di Caster (Rake) tipico MotoGP ~24 gradi (più verticale per agilità)
+		const casterAngle = DegreesToRadians(24); 
+		const maxSteeringAngle = DegreesToRadians(30); // Sterzo limitato in velocità
+		const steerSpeed = 5.0; // Reattività dello sterzo
+
+		// Dinamica di Guida
+		// Le MotoGP piegano fino a 64+ gradi
+		const maxPitchRollAngle = DegreesToRadians(64);
+
+		let previousForward = 1.0;
+		let currentRight = 0.0;
+		let riderMesh;
+
+		let uiSpeed, uiRPM, uiGear, uiTC, uiAW;
+
+		initJolt().then(function (Jolt) {
+			// Initialize this example
+			window.Jolt = Jolt;
+			container = document.getElementById('container');
+			container.innerHTML = "";
+
+			uiSpeed = document.getElementById('speed');
+			uiRPM = document.getElementById('rpm');
+			uiGear = document.getElementById('gear');
+			uiTC = document.getElementById('tc');
+			uiAW = document.getElementById('aw');
+
+			initGraphics();
+			initPhysics();
+			createVehicleTrack();
+
+			// --- CREAZIONE GRAFICA RUOTE (THREE.JS) ---
+			const texLoader = new THREE.TextureLoader();
+			// Texture placeholder semplice
+			const texture = texLoader.load('data:image/gif;base64,R0lGODdhAgACAIABAAAAAP///ywAAAAAAgACAAACA0QCBQA7');
+			texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+			texture.magFilter = THREE.NearestFilter;
+			let wheelMaterial = new THREE.MeshPhongMaterial({ color: 0x111111 }); // Gomma nera
+			wheelMaterial.map = texture;
+
+			const wheelRight = new Jolt.Vec3(0, 1, 0);
+			const wheelUp = new Jolt.Vec3(1, 0, 0);
+
+			const createThreeWheel = (constraint, wheelIndex, body) => {
+				const joltWheel = constraint.GetWheel(wheelIndex);
+				const wheelSetting = joltWheel.GetSettings();
+				// Cilindro per la ruota (approssimazione slick)
+				const wheel = new THREE.Mesh(
+					new THREE.CylinderGeometry(wheelSetting.mRadius, wheelSetting.mRadius, wheelSetting.mWidth, 32, 1), 
+					wheelMaterial
+				);
+				body.add(wheel);
+
+				wheel.updateLocalTransform = () => {
+					let transform = constraint.GetWheelLocalTransform(wheelIndex, wheelRight, wheelUp);
+					wheel.position.copy(wrapVec3(transform.GetTranslation()));
+					wheel.quaternion.copy(wrapQuat(transform.GetRotation().GetQuaternion()));
+				};
+				wheel.updateLocalTransform();
+
+				return wheel;
+			}
+
+			// --- CREAZIONE CORPO MOTO (FISICA) ---
+			// Baricentro basso ma non troppo (per permettere il rollio)
+			const motorcycleShapeSettings = new Jolt.OffsetCenterOfMassShapeSettings(
+				new Jolt.Vec3(0, -halfVehicleHeight * 0.5, 0),
+				new Jolt.BoxShapeSettings(new Jolt.Vec3(halfVehicleWidth, halfVehicleHeight, halfVehicleLength))
+			);
+			
+			const motorcycleShape = motorcycleShapeSettings.Create().Get();
+			const motorcycleBodySettings = new Jolt.BodyCreationSettings(motorcycleShape, new Jolt.RVec3(...bodyPosition),
+				Jolt.Quat.prototype.sRotation(new Jolt.Vec3(0, 1, 0), Math.PI),
+				Jolt.EMotionType_Dynamic, LAYER_MOVING)
+			
+			// Override inerzia per stabilità alle alte velocità
+			motorcycleBodySettings.mOverrideMassProperties = Jolt.EOverrideMassProperties_CalculateInertia;
+			motorcycleBodySettings.mMassPropertiesOverride.mMass = vehicleMass;
+			
+			const motorcycleBody = bodyInterface.CreateBody(motorcycleBodySettings);
+			// Colore Rosso Ducati/Honda style
+			addToScene(motorcycleBody, 0xDD0000);
+
+			// --- RIDER VISUALS ---
+			const motorcycle = dynamicObjects[dynamicObjects.length - 1];
+
+			const riderGeo = new THREE.BoxGeometry(0.5, 0.6, 0.4);
+			const riderMat = new THREE.MeshPhongMaterial({ color: 0x0000FF }); // Blue Rider
+			riderMesh = new THREE.Mesh(riderGeo, riderMat);
+			riderMesh.position.set(0, 0.5, -0.2); // Initial position on top
+			motorcycle.add(riderMesh);
+
+			// --- CONFIGURAZIONE VEICOLO (JOLT) ---
+			const vehicle = new Jolt.VehicleConstraintSettings();
+			vehicle.mMaxPitchRollAngle = maxPitchRollAngle;
+
+			vehicle.mWheels.clear();
+			{
+				// RUOTA ANTERIORE
+				const front = new Jolt.WheelSettingsWV();
+				front.mPosition = new Jolt.Vec3(0.0, -0.9 * halfVehicleHeight, frontWheelPosZ);
+				front.mMaxSteerAngle = maxSteeringAngle;
+				// Vettore sospensione inclinato secondo il Caster Angle
+				front.mSuspensionDirection = new Jolt.Vec3(0, -1, Math.tan(casterAngle)).Normalized();
+				front.mSteeringAxis = new Jolt.Vec3(0, 1, -Math.tan(casterAngle)).Normalized();
+				front.mRadius = frontWheelRadius;
+				front.mWidth = frontWheelWidth;
+				front.mSuspensionMinLength = frontSuspensionMinLength;
+				front.mSuspensionMaxLength = frontSuspensionMaxLength;
+				front.mSuspensionSpring.mFrequency = frontSuspensionFreq;
+				front.mMaxBrakeTorque = frontBrakeTorque; // Frenata potente
+
+				vehicle.mWheels.push_back(front);
+
+				// RUOTA POSTERIORE
+				const back = new Jolt.WheelSettingsWV();
+				back.mPosition = new Jolt.Vec3(0.0, -0.9 * halfVehicleHeight, backWheelPosZ);
+				back.mMaxSteerAngle = 0.0;
+				back.mRadius = backWheelRadius;
+				back.mWidth = backWheelWidth;
+				back.mSuspensionMinLength = backSuspensionMinLength;
+				back.mSuspensionMaxLength = backSuspensionMaxLength;
+				back.mSuspensionSpring.mFrequency = backSuspensionFreq;
+				back.mMaxBrakeTorque = backBrakeTorque;
+
+				vehicle.mWheels.push_back(back);
+			}
+
+			// --- MOTORE E TRASMISSIONE ---
+			const controllerSettings = new Jolt.MotorcycleControllerSettings();
+			// Coppia: ~250+ Nm per un 1000cc da competizione (Realistico MotoGP ~120-150Nm a ruota, ma qui serve potenza)
+			controllerSettings.mEngine.mMaxTorque = 250.0;
+			// Min RPM (Idle alto per le corse)
+			controllerSettings.mEngine.mMinRPM = 3000.0;
+			// Max RPM (Limitatore a 18.000 giri)
+			controllerSettings.mEngine.mMaxRPM = 18000.0;
+			
+			// Cambio: Shift points ottimizzati per stare "in coppia"
+			controllerSettings.mTransmission.mShiftDownRPM = 8000.0; 
+			controllerSettings.mTransmission.mShiftUpRPM = 17000.0;
+			controllerSettings.mTransmission.mClutchStrength = 5.0; // Frizione rapida
+			
+			vehicle.mController = controllerSettings;
+
+			// Differenziale (Bloccato o quasi per trazione massima in uscita)
+			controllerSettings.mDifferentials.clear();
+			const differential = new Jolt.VehicleDifferentialSettings();
+			differential.mLeftWheel = -1;
+			differential.mRightWheel = 1;
+			// Ratio finale: ottimizzato per velocità massime > 300 km/h
+			differential.mDifferentialRatio = 1.93 * 40.0 / 16.0; 
+			controllerSettings.mDifferentials.push_back(differential);
+
+			const constraint = new Jolt.VehicleConstraint(motorcycleBody, vehicle);
+
+			const tester = new Jolt.VehicleCollisionTesterCastCylinder(LAYER_MOVING, 1);
+			constraint.SetVehicleCollisionTester(tester);
+
+			physicsSystem.AddConstraint(constraint);
+			const controller = Jolt.castObject(constraint.GetController(), Jolt.MotorcycleController);
+
+			const modelWheels = [];
+			for (let i = 0; i < vehicle.mWheels.size(); i++) {
+				modelWheels.push(createThreeWheel(constraint, i, motorcycle));
+			}
+
+			// Input handling
+			const input = {
+				forwardPressed: false,
+				backwardPressed: false,
+				leftPressed: false,
+				rightPressed: false,
+				handBrake: false
+			};
+
+			// Physics parameters
+			const dragCoefficient = 0.4;
+			const downforceCoefficient = 0.7;
+			const tcSlipThreshold = 0.25; // 25% slip allowed
+			const wheelieThreshold = Math.sin(DegreesToRadians(15.0)); // ~15 degrees
+			const leanTorqueCoefficient = 100.0; // Assist rolling into turns
+
+			const prePhysicsUpdate = (deltaTime) => {
+				let forward = 0.0, right = 0.0, brake = 0.0, handBrake = 0.0;
+
+				forward = input.forwardPressed ? 1.0 : (input.backwardPressed ? -1.0 : 0.0);
+
+				// --- ADVANCED SIMULATION LOGIC ---
+
+				// Get Current State
+				const linearVelocity = motorcycleBody.GetLinearVelocity();
+				const velocityThree = wrapVec3(linearVelocity);
+				const speed = velocityThree.length();
+				const rotation = wrapQuat(motorcycleBody.GetRotation());
+
+				// 1. Aerodynamics (Drag & Downforce)
+				if (speed > 0.1) {
+					// Drag: Opposes velocity
+					const dragForce = velocityThree.clone().normalize().multiplyScalar(-dragCoefficient * speed * speed);
+					// Downforce: Pushes down (Relative to bike or world? Real downforce is relative to bike lift vector, effectively world down + drag)
+					// Let's apply in local Y negative direction rotated to world, or just world Down?
+					// Winglets work with air flow, so it pushes perpendicular to airflow.
+					// Simplified: World Down based on speed.
+					const downforce = new THREE.Vector3(0, -1, 0).multiplyScalar(downforceCoefficient * speed * speed);
+
+					const joltForce = new Jolt.Vec3(dragForce.x + downforce.x, dragForce.y + downforce.y, dragForce.z + downforce.z);
+					bodyInterface.AddForce(motorcycleBody.GetID(), joltForce, Jolt.EActivation_Activate);
+					Jolt.destroy(joltForce);
+				}
+
+				// 2. Traction Control (TC)
+				let tcActive = false;
+				if (forward > 0.0 && speed > 2.0) {
+					const rearWheel = constraint.GetWheel(1);
+					const omega = rearWheel.GetAngularVelocity();
+					const r = rearWheel.GetSettings().mRadius;
+					const wheelSpeed = omega * r;
+					// Slip Ratio
+					const slip = (wheelSpeed - speed) / Math.max(speed, 0.01);
+					if (slip > tcSlipThreshold) {
+						forward *= 0.2; // Cut throttle
+						tcActive = true;
+					}
+				}
+
+				// 3. Anti-Wheelie (AW)
+				let awActive = false;
+				const forwardDir = new THREE.Vector3(0, 0, 1).applyQuaternion(rotation);
+				const upDir = new THREE.Vector3(0, 1, 0);
+				const pitchVal = forwardDir.dot(upDir); // Positive if nose is up
+				if (pitchVal > wheelieThreshold && forward > 0.0) {
+					forward *= 0.0; // Cut throttle
+					// Optional: Apply rear brake gently
+					brake = Math.max(brake, 0.2);
+					awActive = true;
+				}
+
+				// Logica semplice per freno/retromarcia
+				if (previousForward * forward < 0.0) {
+					const rotationConj = wrapQuat(motorcycleBody.GetRotation().Conjugated());
+					const velocityZ = velocityThree.clone().applyQuaternion(rotationConj).z;
+					if ((forward > 0.0 && velocityZ < -0.1) || (forward < 0.0 && velocityZ > 0.1)) {
+						forward = 0.0;
+						brake = 1.0;
+					} else {
+						previousForward = forward;
+					}
+				}
+
+				if (input.handBrake) {
+					forward = 0.0;
+					handBrake = 1.0;
+				}
+
+				// Sterzo progressivo
+				let inputRight = input.rightPressed ? 1.0 : (input.leftPressed ? -1.0 : 0.0);
+				if (inputRight > currentRight)
+					currentRight = Math.min(currentRight + steerSpeed * deltaTime, inputRight);
+				else if (inputRight < currentRight)
+					currentRight = Math.max(currentRight - steerSpeed * deltaTime, inputRight);
+				right = currentRight;
+
+				// 4. Rider Weight Shift (Assist Roll)
+				if (Math.abs(right) > 0.01 && speed > 5.0) {
+					// Apply torque around local Forward axis (Roll)
+					// Right steer -> Roll Right (positive or negative depending on coords).
+					// Steer right (positive right) -> Lean Right.
+					// In standard coords, Roll Right is usually negative Rotation around Z?
+					// Let's use Local Torque.
+					const rollDir = right; // Steer Right -> Roll Right
+					// Torque Vector in Local Space: (0, 0, -1) * factor?
+					// Wait, Body frame: Y is Up, Z is Forward. Roll is around Z.
+					// Right lean is -Z rotation?
+					const torqueMag = -rollDir * leanTorqueCoefficient * speed;
+
+					// Apply as World Torque
+					const torqueLocal = new THREE.Vector3(0, 0, torqueMag);
+					const torqueWorld = torqueLocal.applyQuaternion(rotation);
+					const joltTorque = new Jolt.Vec3(torqueWorld.x, torqueWorld.y, torqueWorld.z);
+					bodyInterface.AddTorque(motorcycleBody.GetID(), joltTorque, Jolt.EActivation_Activate);
+					Jolt.destroy(joltTorque);
+				}
+
+				controller.SetDriverInput(forward, right, brake, handBrake);
+				
+				// Attiva il corpo se c'è input
+				if (right != 0.0 || forward != 0.0 || brake != 0.0 || handBrake != 0.0)
+					bodyInterface.ActivateBody(motorcycleBody.GetID());
+
+				// Update Telemetry UI
+				if (uiSpeed) uiSpeed.innerText = (speed * 3.6).toFixed(0);
+
+				if (uiRPM) uiRPM.innerText = controller.GetEngine().GetCurrentRPM().toFixed(0);
+
+				const transmission = controller.GetTransmission();
+				const gear = transmission.GetCurrentGear();
+				if (uiGear) uiGear.innerText = gear === 0 ? 'N' : (gear < 0 ? 'R' : gear);
+
+				if (uiTC) {
+					uiTC.innerText = tcActive ? "ENGAGED" : "READY";
+					uiTC.style.color = tcActive ? "red" : "lime";
+				}
+
+				if (uiAW) {
+					uiAW.innerText = awActive ? "ENGAGED" : "READY";
+					uiAW.style.color = awActive ? "red" : "lime";
+				}
+			}
+
+			// Camera Follow
+			controls.target = motorcycle.position;
+			let oldPos = wrapVec3(motorcycleBody.GetPosition());
+			
+			onExampleUpdate = (time, deltaTime) => {
+				prePhysicsUpdate(deltaTime);
+
+				const pos = wrapVec3(motorcycleBody.GetPosition());
+				// Smooth camera follow
+				camera.position.add(pos.clone().sub(oldPos));
+				oldPos = pos;
+
+				modelWheels.forEach(wheel => wheel.updateLocalTransform());
+
+				// Animate Rider (Hanging off)
+				if (riderMesh) {
+					// Move rider laterally based on steering (Weight Shift)
+					// Shift range: +/- 0.4m
+					riderMesh.position.x = currentRight * 0.4;
+					// Lean rider body slightly more than the bike
+					riderMesh.rotation.z = -currentRight * 0.5;
+				}
+			}
+
+			// Input Listeners
+			document.addEventListener("keydown", (event) => {
+				if (event.key == 'w') input.forwardPressed = true;
+				else if (event.key == 's') input.backwardPressed = true;
+				else if (event.key == 'a') input.leftPressed = true;
+				else if (event.key == 'd') input.rightPressed = true;
+				else if (event.key == 'z') input.handBrake = true;
+			});
+			document.addEventListener("keyup", (event) => {
+				if (event.key == 'w') input.forwardPressed = false;
+				else if (event.key == 's') input.backwardPressed = false;
+				else if (event.key == 'a') input.leftPressed = false;
+				else if (event.key == 'd') input.rightPressed = false;
+				else if (event.key == 'z') input.handBrake = false;
+			});
+
+			physicsSystem.AddStepListener(new Jolt.VehicleConstraintStepListener(constraint));
+			renderExample();
+		});
+
+	</script>
+</body>
+</html>
