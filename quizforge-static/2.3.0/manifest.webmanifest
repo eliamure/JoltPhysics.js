@@ -1,0 +1,11 @@
+{
+  "name": "QuizForge · Sfida 85",
+  "short_name": "QuizForge",
+  "description": "Quiz didattici offline per 10, 13, 16 e 20 anni.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#08111f",
+  "theme_color": "#08111f",
+  "lang": "it",
+  "icons": []
+}
