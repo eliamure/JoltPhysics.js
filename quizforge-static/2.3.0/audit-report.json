@@ -1,0 +1,15 @@
+{
+  "version": "2.3.0",
+  "status": "PASS",
+  "totalUnique": 10000,
+  "uniquePrompts": 10000,
+  "ages": {
+    "10": {"unique": 2500,"seedsUsed": 389},
+    "13": {"unique": 2500,"seedsUsed": 318},
+    "16": {"unique": 2500,"seedsUsed": 315},
+    "20": {"unique": 2500,"seedsUsed": 308}
+  },
+  "difficulties": 5,
+  "families": 80,
+  "generatedAt": "2026-07-23T00:00:00Z"
+}
