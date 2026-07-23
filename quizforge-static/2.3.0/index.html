@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08111f">
+  <meta name="description" content="QuizForge: sfide didattiche offline per 10, 13, 16 e 20 anni.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <title>QuizForge 2.3.0 · Sfida 85</title>
+  <style>
+    :root{color-scheme:dark;--bg:#08111f;--panel:#0f172a;--text:#f8fafc;--muted:#cbd5e1;--cyan:#22d3ee;--purple:#a855f7;--ok:#4ade80;--bad:#fb7185}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 8% 8%,#164e63 0,transparent 34%),radial-gradient(circle at 92% 88%,#581c87 0,transparent 35%),var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;display:grid;place-items:center;padding:12px}.app{width:min(820px,100%);background:#0f172af2;border:1px solid #ffffff20;border-radius:24px;overflow:hidden;box-shadow:0 30px 90px #0009}.head,.body,.foot,.result{padding:22px}.head{background:linear-gradient(135deg,#22d3ee22,#a855f722);border-bottom:1px solid #ffffff20}.row{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}h1,h2,h3,p{margin-top:0}.brand{font-size:clamp(1.65rem,5vw,2.5rem);margin-bottom:6px}.pill,.age,.select,input{border:1px solid #ffffff25;border-radius:999px;padding:10px 14px;background:#ffffff0c;color:#fff;font-weight:800}.ages{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}.age{cursor:pointer;text-align:center}.age:hover,.age.on{background:#22d3ee25;border-color:var(--cyan)}.settings{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0 16px}.field{display:grid;gap:7px}.select,input{width:100%;border-radius:14px;font:inherit}.bar{height:11px;background:#ffffff12;border-radius:99px;overflow:hidden;margin-top:12px}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple));width:0;transition:width .2s}.answers{display:grid;gap:11px}.ans,.primary,.secondary{font:inherit;font-weight:850;border-radius:14px;padding:14px 16px;cursor:pointer}.ans{border:1px solid #ffffff22;background:#ffffff0a;color:#fff;text-align:left}.ans:hover,.ans.on{border-color:var(--cyan);background:#22d3ee20}.primary{border:0;color:#fff;background:linear-gradient(135deg,#06b6d4,#9333ea)}.primary:disabled{opacity:.35;cursor:not-allowed}.secondary{border:1px solid #ffffff25;background:#ffffff0a;color:#fff}.muted{color:var(--muted)}.hide{display:none!important}.foot{display:flex;justify-content:space-between;gap:12px;align-items:center}.score{font-size:clamp(3rem,15vw,6rem);font-weight:1000;background:linear-gradient(135deg,#67e8f9,#d8b4fe);color:transparent;background-clip:text}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:18px 0}.stat,.review article,.audit{border:1px solid #ffffff20;background:#ffffff08;border-radius:14px;padding:13px}.review{text-align:left}.review article{margin:9px 0}.ok{color:var(--ok)}.bad{color:var(--bad)}.setup{text-align:center}.small{font-size:.9rem}.code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.audit{margin-top:18px;text-align:left}.audit strong{color:#67e8f9}.actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+    @media(max-width:620px){.ages,.settings{grid-template-columns:repeat(2,1fr)}.foot{flex-direction:column;align-items:stretch}.stats{grid-template-columns:1fr}.primary{width:100%}}
+  </style>
+</head>
+<body>
+<main class="app" aria-live="polite">
+  <section id="setup" class="setup">
+    <div class="head"><div class="row"><div><h1 class="brand">⚡ QuizForge</h1><div class="muted small">Release 2.3.0 · PWA offline</div></div><span class="pill">Vinci con 85%</span></div><p class="muted">Sfide deterministiche e autoconsistenti, senza account, backend o tracciamento.</p></div>
+    <div class="body">
+      <h2>Scegli la fascia</h2><div class="ages" id="ages"></div>
+      <div class="settings">
+        <label class="field"><span class="small muted">Numero di domande</span><select id="count-select" class="select"><option value="10">10 · Lampo</option><option value="20">20 · Completa</option></select></label>
+        <label class="field"><span class="small muted">Codice sfida</span><input id="seed" class="code" maxlength="80" placeholder="Automatico"></label>
+      </div>
+      <button id="start" class="primary">Inizia la sfida</button>
+      <div class="audit small"><strong>Corpus auditato:</strong> 10.000 casi validati, 4 fasce, 5 difficoltà e 80 famiglie generative. Le domande sono prodotte localmente e funzionano anche senza rete.</div>
+    </div>
+  </section>
+  <section id="game" class="hide">
+    <div class="head"><div class="row"><b id="counter"></b><span id="meta" class="pill"></span></div><div class="bar"><i id="bar"></i></div></div>
+    <div class="body"><div id="tags" class="muted small"></div><h2 id="question"></h2><div id="answers" class="answers"></div></div>
+    <div class="foot"><span id="status" class="muted"></span><button id="next" class="primary" disabled>Prossima</button></div>
+  </section>
+  <section id="result" class="result hide" style="text-align:center">
+    <div id="emoji" style="font-size:4rem"></div><h2 id="result-title"></h2><div id="score" class="score"></div><p id="message" class="muted"></p>
+    <div id="stats" class="stats"></div><p class="pill code" id="challenge"></p><div class="review" id="review"></div>
+    <div class="actions"><button id="again" class="primary">Nuova sfida</button><button id="repeat" class="secondary">Ripeti stesso codice</button></div>
+  </section>
+</main>
+<script src="./app.js" defer></script>
+</body>
+</html>
